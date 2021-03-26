@@ -95,7 +95,7 @@ func (c *Client) SendPacket(pkt *packet.Packet, rsper *Responser) error {
 	}
 	c.Lock()
 	c.responsers[pkt.Header.Seq] = rsper
-	defer c.Unlock()
+	c.Unlock()
 
 	c.send(buf)
 	return nil
@@ -111,7 +111,12 @@ func (c *Client) readPump() {
 		c.conn.Close()
 		Hub.unregister(c)
 	}()
-	c.conn.SetReadLimit(maxMessageSize)
+	
+	// Problem: websocket: close 1009 (message too big)
+	// Resolution: The application is calling SetReadLimit. Increase the limit or remove the call.
+	// refer: https://github.com/gorilla/websocket/issues/283
+
+	// c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {

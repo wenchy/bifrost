@@ -48,8 +48,9 @@ func NewRequestPacket(payload []byte) *Packet {
 			ID: 0,
 			Seq: GenUniqSeq(),
 			Code: 0,
-			Size: 0,
+			Size: uint32(len(payload)),
 		},
+		Payload: payload,
 	}
 }
 

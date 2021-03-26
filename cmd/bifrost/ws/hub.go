@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"sync"
 	"time"
 
@@ -94,10 +95,41 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 
 	switch pkt.Header.Type {
 	case packet.PacketTypeRequest:
+		// https://stackoverflow.com/questions/19595860/http-request-requesturi-field-when-making-request-in-go
 		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(pkt.Payload)))
 		if err != nil {
 			atom.Log.Errorf("ReadRequest failed: %v", err)
 			return err
+		}
+
+		// Save a copy of this request for debugging.
+		rawreq, err := httputil.DumpRequest(req, true)
+		if err != nil {
+			atom.Log.Errorf("DumpRequest failed: %s", err)
+			return err
+		}
+		atom.Log.Debugf("%d|recieve request: %s", pkt.Header.Seq, string(rawreq))
+
+		// We can't have this set. It is an error to set this field in
+		// an HTTP client request. The reason why it is set is because
+		// that is what ReadRequest does when parsing the request stream.
+		req.RequestURI = ""
+
+		// Since the req.URL will not have all the information set,
+		// such as protocol scheme and host, we create a new URL
+		directedURL, err := url.Parse("http://www.baidu.com")
+		if err != nil {
+			atom.Log.Errorf("Parse failed: %s", err)
+			return err
+		}
+		req.URL = directedURL
+		
+
+		// for test
+		req, err = http.NewRequest(http.MethodGet, "http://www.baidu.com", nil)
+		if err != nil {
+			atom.Log.Errorf("NewRequest failed: %s", err)
+			return  err
 		}
 		client := &http.Client{}
 		rsp, err := client.Do(req)
@@ -122,11 +154,13 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		h.RUnlock()
 
 		pkt.Header.Type = packet.PacketTypeResponse
+		pkt.Header.Size = uint32(len(rawrsp))
 		pkt.Payload = rawrsp
 		c.SendPacket(pkt, nil)
 
 	case packet.PacketTypeResponse:
 		if rsper, ok := c.responsers[pkt.Header.Seq]; ok {
+			atom.Log.Debugf("%d|recieve response: %s", pkt.Header.Seq, string(pkt.Payload))
 			// refer: https://stackoverflow.com/questions/62387069/golang-parse-raw-http-2-response
 			// TODO(wenchy): handle HTTP/2
 			rsp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(pkt.Payload)), rsper.req)
@@ -176,7 +210,7 @@ func Forward(rw http.ResponseWriter, req *http.Request) error {
 	}
 	Hub.RUnlock()
 
-	/// Save a copy of this request for debugging.
+	// Save a copy of this request for debugging.
 	rawreq, err := httputil.DumpRequest(req, true)
 	if err != nil {
 		atom.Log.Errorf("DumpRequest failed: %s", err)
