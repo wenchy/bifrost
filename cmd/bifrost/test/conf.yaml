@@ -1,0 +1,6 @@
+server:
+  self_addr: :9099
+  peer_addr: ws://127.0.0.1:9098/ws
+log:
+  level: debug # 日志级别由低到高: debug, info, warn, error
+  dir: ./logs # 日志存储目
