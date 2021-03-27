@@ -16,3 +16,7 @@
 
 *.log
 logs
+
+# bin
+cmd/bifrost/bifrost
+cmd/weblet/weblet
