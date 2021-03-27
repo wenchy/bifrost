@@ -147,6 +147,14 @@ func DirectRequest(req *http.Request, target *url.URL) {
 	req.RequestURI = ""
 }
 
+func copyHeader(dst, src http.Header) {
+	for k, vv := range src {
+		for _, v := range vv {
+			dst.Add(k, v)
+		}
+	}
+}
+
 func (h *hub) handleIngress(c *Client, msg []byte) error {
 	pkt, err := packet.Parse(msg)
 	if err != nil {
@@ -230,6 +238,7 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 			}
 			defer rsp.Body.Close()
 
+			copyHeader(rsper.rw.Header(), rsp.Header)
 			rsper.rw.Write(body)
 			rsper.done <- true
 		}

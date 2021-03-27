@@ -58,13 +58,13 @@ func findTarget(fromURL *url.URL) string {
 
 // Given a request send it to the appropriate url
 func handleRequestAndRedirect(rw http.ResponseWriter, req *http.Request) {
-	requestPayload := getRequestBodyCopy(req)
+	// requestPayload := getRequestBodyCopy(req)
 	target := findTarget(req.URL)
 	if target == "" {
 		atom.Log.Errorf("target not found of path: %s", req.URL.Path)
 		return
 	}
-	logRequestPayload(requestPayload, target)
+	logRequestPayload(req, target)
 
 	ws.Forward(target, rw, req)
 	// serveReverseProxy(proxyTargetUrl, rw, req)
@@ -105,14 +105,6 @@ func getRequestBodyCopy(request *http.Request) io.ReadCloser {
 }
 
 // Log the typeform payload and redirect url
-func logRequestPayload(body io.ReadCloser, target string) {
-	// Read body to buffer
-	payload, err := ioutil.ReadAll(body)
-	if err != nil {
-		log.Printf("Error reading body: %v", err)
-		panic(err)
-	}
-	defer body.Close()
-
-	log.Printf("payload: %s, target: %s\n", payload, target)
+func logRequestPayload(req *http.Request, target string) {
+	log.Printf("target: %s, from: %s\n", target, req.URL.String())
 }
