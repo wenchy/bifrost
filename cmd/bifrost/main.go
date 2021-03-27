@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"regexp"
 
 	"github.com/Wenchy/bifrost/cmd/bifrost/conf"
 	"github.com/Wenchy/bifrost/cmd/bifrost/ws"
@@ -41,14 +42,32 @@ func main() {
 	}
 }
 
+func findTarget(fromURL *url.URL) string {
+	for _, proxy := range conf.Conf.Proxies {
+		matched, err := regexp.MatchString(proxy.Path, fromURL.Path)
+		if err != nil {
+			atom.Log.Errorf("path: %v, MatchString failed: %v", proxy.Path, err)
+			return ""
+		}
+		if matched {
+			return proxy.Target
+		}
+	}
+	return ""
+}
+
 // Given a request send it to the appropriate url
 func handleRequestAndRedirect(rw http.ResponseWriter, req *http.Request) {
 	requestPayload := getRequestBodyCopy(req)
-	proxyUrl := conf.Conf.Server.PeerAddr
-	logRequestPayload(requestPayload, proxyUrl)
+	target := findTarget(req.URL)
+	if target == "" {
+		atom.Log.Errorf("target not found of path: %s", req.URL.Path)
+		return
+	}
+	logRequestPayload(requestPayload, target)
 
-	ws.Forward(rw, req)
-	// serveReverseProxy(proxyUrl, rw, req)
+	ws.Forward(target, rw, req)
+	// serveReverseProxy(proxyTargetUrl, rw, req)
 }
 
 // Serve a reverse proxy for a given url
@@ -86,7 +105,7 @@ func getRequestBodyCopy(request *http.Request) io.ReadCloser {
 }
 
 // Log the typeform payload and redirect url
-func logRequestPayload(body io.ReadCloser, proxyUrl string) {
+func logRequestPayload(body io.ReadCloser, target string) {
 	// Read body to buffer
 	payload, err := ioutil.ReadAll(body)
 	if err != nil {
@@ -95,5 +114,5 @@ func logRequestPayload(body io.ReadCloser, proxyUrl string) {
 	}
 	defer body.Close()
 
-	log.Printf("payload: %s, proxy_url: %s\n", payload, proxyUrl)
+	log.Printf("payload: %s, target: %s\n", payload, target)
 }

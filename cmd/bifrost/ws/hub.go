@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -85,6 +86,67 @@ func (h *hub) dispatchIngress() {
 	}
 }
 
+// Copy singleJoiningSlash from https://golang.org/src/net/http/httputil/reverseproxy.go
+func singleJoiningSlash(a, b string) string {
+	aslash := strings.HasSuffix(a, "/")
+	bslash := strings.HasPrefix(b, "/")
+	switch {
+	case aslash && bslash:
+		return a + b[1:]
+	case !aslash && !bslash:
+		return a + "/" + b
+	}
+	return a + b
+}
+
+// Copy joinURLPath from https://golang.org/src/net/http/httputil/reverseproxy.go
+func joinURLPath(a, b *url.URL) (path, rawpath string) {
+	if a.RawPath == "" && b.RawPath == "" {
+		return singleJoiningSlash(a.Path, b.Path), ""
+	}
+	// Same as singleJoiningSlash, but uses EscapedPath to determine
+	// whether a slash should be added
+	apath := a.EscapedPath()
+	bpath := b.EscapedPath()
+
+	aslash := strings.HasSuffix(apath, "/")
+	bslash := strings.HasPrefix(bpath, "/")
+
+	switch {
+	case aslash && bslash:
+		return a.Path + b.Path[1:], apath + bpath[1:]
+	case !aslash && !bslash:
+		return a.Path + "/" + b.Path, apath + "/" + bpath
+	}
+	return a.Path + b.Path, apath + bpath
+}
+
+// DirectRequest routes URLs to the scheme, host, and base path
+// provided in target. If the target's path is "/base" and the
+// incoming request was for "/dir", the target request will be
+// for /base/dir.
+// Learn NewSingleHostReverseProxy from https://golang.org/src/net/http/httputil/reverseproxy.go
+func DirectRequest(req *http.Request, target *url.URL) {
+	targetQuery := target.RawQuery
+	req.URL.Scheme = target.Scheme
+	req.URL.Host = target.Host
+	req.URL.Path, req.URL.RawPath = joinURLPath(target, req.URL)
+	if targetQuery == "" || req.URL.RawQuery == "" {
+		req.URL.RawQuery = targetQuery + req.URL.RawQuery
+	} else {
+		req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
+	}
+	if _, ok := req.Header["User-Agent"]; !ok {
+		// explicitly disable User-Agent so it's not set to default value
+		req.Header.Set("User-Agent", "")
+	}
+
+	// We can't have this set. It is an error to set this field in
+	// an HTTP client request. The reason why it is set is because
+	// that is what ReadRequest does when parsing the request stream.
+	req.RequestURI = ""
+}
+
 func (h *hub) handleIngress(c *Client, msg []byte) error {
 	pkt, err := packet.Parse(msg)
 	if err != nil {
@@ -102,41 +164,31 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 			return err
 		}
 
+		target := req.Header.Get("X-Bifrost-Target")
+		targetURL, _ := url.Parse(target)
+		DirectRequest(req, targetURL)
+
 		// Save a copy of this request for debugging.
 		rawreq, err := httputil.DumpRequest(req, true)
 		if err != nil {
 			atom.Log.Errorf("DumpRequest failed: %s", err)
 			return err
 		}
-		atom.Log.Debugf("%d|recieve request: %s", pkt.Header.Seq, string(rawreq))
-
-		// We can't have this set. It is an error to set this field in
-		// an HTTP client request. The reason why it is set is because
-		// that is what ReadRequest does when parsing the request stream.
-		req.RequestURI = ""
-
-		// Since the req.URL will not have all the information set,
-		// such as protocol scheme and host, we create a new URL
-		directedURL, err := url.Parse("http://www.baidu.com")
-		if err != nil {
-			atom.Log.Errorf("Parse failed: %s", err)
-			return err
-		}
-		req.URL = directedURL
-		
-
+		atom.Log.Debugf("%d|recieve request: %s, %s", pkt.Header.Seq, req.URL.String(), string(rawreq))
 		// for test
-		req, err = http.NewRequest(http.MethodGet, "http://www.baidu.com", nil)
-		if err != nil {
-			atom.Log.Errorf("NewRequest failed: %s", err)
-			return  err
-		}
+		// req, err = http.NewRequest(http.MethodGet, "http://www.baidu.com", nil)
+		// if err != nil {
+		// 	atom.Log.Errorf("NewRequest failed: %s", err)
+		// 	return  err
+		// }
+
 		client := &http.Client{}
 		rsp, err := client.Do(req)
 		if err != nil {
 			atom.Log.Errorf("http client do failed: %v", err)
 			return err
 		}
+
 		// Save a copy of this request for debugging.
 		rawrsp, err := httputil.DumpResponse(rsp, true)
 		if err != nil {
@@ -157,6 +209,8 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		pkt.Header.Size = uint32(len(rawrsp))
 		pkt.Payload = rawrsp
 		c.SendPacket(pkt, nil)
+
+		atom.Log.Debugf("%d|send response: %s", pkt.Header.Seq, string(pkt.Payload))
 
 	case packet.PacketTypeResponse:
 		if rsper, ok := c.responsers[pkt.Header.Seq]; ok {
@@ -200,7 +254,7 @@ func (h *hub) forward(ID uint64, msg []byte) error {
 	return nil
 }
 
-func Forward(rw http.ResponseWriter, req *http.Request) error {
+func Forward(target string, rw http.ResponseWriter, req *http.Request) error {
 	Hub.RLock()
 	c, ok := Hub.Clients[0] // TODO: pick a proper client
 	if !ok {
@@ -209,7 +263,8 @@ func Forward(rw http.ResponseWriter, req *http.Request) error {
 		return fmt.Errorf("ID not found")
 	}
 	Hub.RUnlock()
-
+	// custom HTTP header field: X-Bifrost-Target
+	req.Header.Set("X-Bifrost-Target", target)
 	// Save a copy of this request for debugging.
 	rawreq, err := httputil.DumpRequest(req, true)
 	if err != nil {
@@ -224,7 +279,7 @@ func Forward(rw http.ResponseWriter, req *http.Request) error {
 		rw:   rw,
 	}
 
-	atom.Log.Debugf("%d|start request: %s", pkt.Header.Seq, string(rawreq))
+	atom.Log.Debugf("%d|send request: %s, %s", pkt.Header.Seq, req.URL.String(), string(rawreq))
 
 	err = c.SendPacket(pkt, rsper)
 	if err != nil {
@@ -235,7 +290,8 @@ func Forward(rw http.ResponseWriter, req *http.Request) error {
 	for {
 		select {
 		case <-rsper.done:
-			atom.Log.Debugf("%d|end request: %s", pkt.Header.Seq, string(rawreq))
+			atom.Log.Debugf("%d|end request: %s", pkt.Header.Seq, req.URL.String())
+			// atom.Log.Debugf("%d|end request: %s", pkt.Header.Seq, string(rawreq))
 			return nil
 		}
 	}

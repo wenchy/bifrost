@@ -8,13 +8,19 @@ import (
 )
 
 type serverConf struct {
-	Server nodeConf `yaml:"server"`
-	Log    logConf  `yaml:"log"`
+	Server  nodeConf    `yaml:"server"`
+	Log     logConf     `yaml:"log"`
+	Proxies []proxyConf `yaml:"proxies"`
 }
 
 type nodeConf struct {
 	SelfAddr string `yaml:"self_addr"`
 	PeerAddr string `yaml:"peer_addr"`
+}
+
+type proxyConf struct {
+	Path   string `yaml:"path"`
+	Target string `yaml:"target"`
 }
 
 type logConf struct {
