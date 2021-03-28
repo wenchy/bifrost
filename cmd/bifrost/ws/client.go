@@ -54,29 +54,48 @@ type Client struct {
 	sendChClosed bool
 	// packet seq -> Responser
 	responsers map[uint32]*Responser
+
+	// server addr
+	addr string
 }
 
-func NewClient(urlStr string) *Client {
-	conn, rsp, err := websocket.DefaultDialer.Dial(urlStr, nil)
+func BuildNewTunnel(addr string) {
+	c := NewClient(addr)
+	if err := c.Dial(); err == nil {
+		c.Run()
+	}
+	go c.autoReconnect()
+}
+
+func NewClient(addr string) *Client {
+	return &Client{
+		ID:           0,
+		conn:         nil,
+		sendCh:       nil,
+		sendChClosed: true,
+		responsers:   map[uint32]*Responser{},
+		addr:         addr,
+	}
+}
+
+func (c *Client) Dial() error {
+	conn, rsp, err := websocket.DefaultDialer.Dial(c.addr, nil)
 	if err != nil {
 		atom.Log.Errorf("websocket dial failed: %v", err)
-		panic(err)
+		return err
 	}
 	rawrsp, err := httputil.DumpResponse(rsp, true)
 	if err != nil {
-		atom.Log.Errorf("http DumpResponse failed: %v", err)
-		panic(err)
+		atom.Log.Warnf("http DumpResponse failed: %v", err)
 	}
-
 	atom.Log.Debugf("websocket dial rsp: %v", string(rawrsp))
 
-	return &Client{
-		ID:           0,
-		conn:         conn,
-		sendCh:       make(chan []byte, 256),
-		sendChClosed: false,
-		responsers:   map[uint32]*Responser{},
-	}
+	// below must be updated
+	c.conn = conn
+	c.sendCh = make(chan []byte, 256)
+	c.sendChClosed = false
+
+	return nil
 }
 
 func (c *Client) Run() {
@@ -86,6 +105,34 @@ func (c *Client) Run() {
 	go c.readPump()
 
 	Hub.register(c)
+}
+
+func (c *Client) autoReconnect() {
+	statTicker := time.NewTicker(1 * time.Second)
+	defer func() {
+		statTicker.Stop()
+	}()
+
+	for {
+		select {
+		case <-statTicker.C:
+			connected := true
+			if c.conn == nil {
+				connected = false
+			} else {
+				if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					atom.Log.Warnf("%v|write ping message error: %v", c.ID, err)
+					connected = false
+				}
+			}
+
+			if !connected {
+				if err := c.Dial(); err == nil {
+					c.Run()
+				}
+			}
+		}
+	}
 }
 
 func (c *Client) SendPacket(pkt *packet.Packet, rsper *Responser) error {

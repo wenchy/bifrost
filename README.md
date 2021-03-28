@@ -4,7 +4,7 @@ A powerful bi-direction http proxy over websocket.
 ## Features
 - [x] Support HTTP 1.x
 - [x] Duplex communication
-- [ ] Automatic reconnection
+- [x] Automatic reconnection
 - [x] Compression: gzip
 - [ ] Encryption
 - [ ] WebSocket Secure: wss, refer https://github.com/denji/golang-tls

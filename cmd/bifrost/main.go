@@ -27,8 +27,7 @@ func main() {
 	go ws.Hub.Run()
 
 	if conf.Conf.Server.PeerAddr != "" {
-		client := ws.NewClient(conf.Conf.Server.PeerAddr)
-		client.Run()
+		ws.BuildNewTunnel(conf.Conf.Server.PeerAddr)
 	}
 
 	// start server
