@@ -5,5 +5,5 @@ proxies:
   - path: /*
     target: http://127.0.0.1:18080/test
 log:
-  level: debug # 日志级别由低到高: debug, info, warn, error
-  dir: ./logs # 日志存储目
+  level: debug # debug, info, warn, error
+  dir: ./logs # log directory
