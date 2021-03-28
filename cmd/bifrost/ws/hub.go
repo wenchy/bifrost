@@ -239,6 +239,11 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 			defer rsp.Body.Close()
 
 			copyHeader(rsper.rw.Header(), rsp.Header)
+			// NOTE(wenchyzhu): read docs of http.ResponseWriter and refer net/http/httputil/reverseproxy.go
+			// Changing the header map after a call to WriteHeader (or
+			// Write) has no effect unless the modified headers are
+			// trailers.
+			rsper.rw.WriteHeader(rsp.StatusCode)
 			rsper.rw.Write(body)
 			rsper.done <- true
 		}
