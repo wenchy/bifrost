@@ -1,5 +1,5 @@
 # bifrost
-A powerful bi-direction http proxy over websocket.
+A powerful websocket tunnel to transfer HTTP over Websocket.
 
 ## Features
 - [x] Support HTTP 1.x
