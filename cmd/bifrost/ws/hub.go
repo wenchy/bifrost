@@ -190,11 +190,18 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		// 	return  err
 		// }
 
-		client := &http.Client{}
+		client := &http.Client{
+			Timeout: time.Second * 5,
+		}
 		rsp, err := client.Do(req)
 		if err != nil {
 			atom.Log.Errorf("http client do failed: %v", err)
-			return err
+			rsp = &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Status:     err.Error(),
+				ProtoMajor: 1,
+				ProtoMinor: 1,
+			}
 		}
 
 		// Save a copy of this request for debugging.
