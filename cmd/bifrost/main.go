@@ -42,9 +42,16 @@ func main() {
 	}
 }
 
-func findTarget(fromURL *url.URL) string {
+func findTarget(req *http.Request) string {
+
+	// step-1: judge by HTTP header field "X-Bifrost-Target"
+	target := req.Header.Get("X-Bifrost-Target")
+	if target != "" {
+		return target
+	}
+	// step-2: judge by conf
 	for _, proxy := range conf.Conf.Proxies {
-		matched, err := regexp.MatchString(proxy.Path, fromURL.Path)
+		matched, err := regexp.MatchString(proxy.Path, req.URL.Path)
 		if err != nil {
 			atom.Log.Errorf("path: %v, MatchString failed: %v", proxy.Path, err)
 			return ""
@@ -59,7 +66,7 @@ func findTarget(fromURL *url.URL) string {
 // Given a request send it to the appropriate url
 func handleRequestAndRedirect(rw http.ResponseWriter, req *http.Request) {
 	// requestPayload := getRequestBodyCopy(req)
-	target := findTarget(req.URL)
+	target := findTarget(req)
 	if target == "" {
 		atom.Log.Errorf("target not found of path: %s", req.URL.Path)
 		return
