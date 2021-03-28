@@ -5,7 +5,8 @@ A powerful bi-direction http proxy over websocket.
 - [x] Support HTTP 1.x
 - [x] Duplex communication
 - [ ] Automatic reconnection
-- [ ] Encryption and compress of content
+- [x] Compression: gzip
+- [ ] Encryption
 - [ ] WebSocket Secure: wss, refer https://github.com/denji/golang-tls
 - [ ] Chunked transfer encoding(specially for large file transfers)
 - [ ] Support HTTP2

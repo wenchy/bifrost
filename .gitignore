@@ -19,4 +19,5 @@ logs
 
 # bin
 cmd/bifrost/bifrost
+cmd/bifrost/test/bifrost
 cmd/weblet/weblet
