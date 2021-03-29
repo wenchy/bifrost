@@ -117,13 +117,8 @@ func (c *Client) autoReconnect() {
 		select {
 		case <-statTicker.C:
 			connected := true
-			if c.conn == nil {
+			if c.conn == nil || c.sendChClosed {
 				connected = false
-			} else {
-				if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-					atom.Log.Warnf("%v|write ping message error: %v", c.ID, err)
-					connected = false
-				}
 			}
 
 			if !connected {
