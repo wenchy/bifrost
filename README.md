@@ -14,9 +14,9 @@ A powerful websocket tunnel to transfer **HTTP over Websocket**.
 - [ ] Mutiple websocket connection tunnels, improve transmission performance
 
 ## Installation
-bin: `go get -u github.com/Wenchy/bifrost/cmd/bifrost`
-conf: `wget https://raw.githubusercontent.com/Wenchy/bifrost/master/cmd/bifrost/conf.yaml`
-script: `wget https://raw.githubusercontent.com/Wenchy/bifrost/master/cmd/bifrost/startstop.sh`
+- bin: `go get -u github.com/Wenchy/bifrost/cmd/bifrost`
+- conf: `wget https://raw.githubusercontent.com/Wenchy/bifrost/master/cmd/bifrost/conf.yaml`
+- script: `wget https://raw.githubusercontent.com/Wenchy/bifrost/master/cmd/bifrost/startstop.sh`
 
 ## Usage
 
