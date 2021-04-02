@@ -14,13 +14,13 @@ A powerful websocket tunnel to transfer **HTTP over Websocket**.
 - [ ] Mutiple websocket connection tunnels, improve transmission performance
 
 ## Installation
-`go get -u github.com/Wenchy/bifrost`
+`go get -u github.com/Wenchy/bifrost/cmd/bifrost`
 
 ## Usage
 
-### Configuruation
+### Configuration
 
-**conf.yaml**
+*cmd/bifrost/conf.yaml*
 ```
 server:
   self_addr: :9098
@@ -41,6 +41,8 @@ This field directs the forwarded target to the websocket tunnel's peer side, it 
 e.g.: `X-Bifrost-Target: https://www.google.com`
 
 ### Run as daemon
+script: *cmd/bifrost/startstop.sh*
+
 | Action  | Command               |
 | ------- | --------------------- |
 | Start   | `./startstop start`   |
