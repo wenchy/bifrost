@@ -1,16 +1,16 @@
 # bifrost
-A powerful websocket tunnel to transfer HTTP over Websocket.
+A powerful websocket tunnel to transfer **HTTP over Websocket**.
 
 ## Features
 - [x] Support HTTP 1.x
 - [x] Duplex communication
 - [x] Automatic reconnection
 - [x] Compression: gzip
-- [ ] Encryption
+- [x] Encryption: AES
 - [ ] WebSocket Secure: wss, refer https://github.com/denji/golang-tls
 - [ ] Chunked transfer encoding(specially for large file transfers)
 - [ ] Support HTTP2
-- [ ] Support websocket, which means websocket over websocket
+- [ ] Support websocket, which means **Websocket over Websocket**
 - [ ] Mutiple websocket connection tunnels, improve transmission performance
 
 ## Installation
@@ -41,9 +41,11 @@ This field directs the forwarded target to the websocket tunnel's peer side, it 
 e.g.: `X-Bifrost-Target: https://www.google.com`
 
 ### Run as daemon
-- start: `./startstop start`
-- stop: `./startstop stop`
-- restart: `./startstop restart`
+| Action  | Command               |
+| ------- | --------------------- |
+| Start   | `./startstop start`   |
+| Stop    | `./startstop stop`    |
+| Restart | `./startstop restart` |
 
 
 ## References

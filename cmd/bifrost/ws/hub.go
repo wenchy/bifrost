@@ -167,13 +167,21 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 	case packet.PacketTypeRequest:
 		// https://stackoverflow.com/questions/19595860/http-request-requesturi-field-when-making-request-in-go
 		// decompress payload
-		rawreq, err := DecompressByGzip(pkt.Payload)
+
+		// decrypt
+		zipReq, err := Decrypt(cipherKey, pkt.Payload)
 		if err != nil {
-			atom.Log.Errorf("DecompressByGzip failed: %s", err)
+			atom.Log.Errorf("decrypt failed: %s", err)
+			return err
+		}
+		// decompress
+		rawReq, err := DecompressByGzip(zipReq)
+		if err != nil {
+			atom.Log.Errorf("decompress failed: %s", err)
 			return err
 		}
 
-		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(rawreq)))
+		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(rawReq)))
 		if err != nil {
 			atom.Log.Errorf("ReadRequest failed: %v", err)
 			return err
@@ -207,7 +215,7 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		}
 
 		// Save a copy of this request for debugging.
-		rawrsp, err := httputil.DumpResponse(rsp, true)
+		rawRsp, err := httputil.DumpResponse(rsp, true)
 		if err != nil {
 			atom.Log.Errorf("DumpRequest failed: %s", err)
 			return err
@@ -222,32 +230,45 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		}
 		h.RUnlock()
 
-		compressedRsp, err := CompressByGzip(rawrsp)
+		// compress
+		zipRsp, err := CompressByGzip(rawRsp)
 		if err != nil {
-			atom.Log.Errorf("CompressByGzip failed: %s", err)
+			atom.Log.Errorf("compress failed: %s", err)
+			return err
+		}
+		// encrypt
+		cipherRsp, err := Encrypt(cipherKey, zipRsp)
+		if err != nil {
+			atom.Log.Errorf("encrypt failed: %s", err)
 			return err
 		}
 
 		pkt.Header.Type = packet.PacketTypeResponse
-		pkt.Header.Size = uint32(len(compressedRsp))
-		pkt.Payload = compressedRsp
+		pkt.Header.Size = uint32(len(cipherRsp))
+		pkt.Payload = cipherRsp
 		c.SendPacket(pkt, nil)
 
-		atom.Log.Debugf("%d|send response: %s", pkt.Header.Seq, string(pkt.Payload))
+		atom.Log.Debugf("%d|send response: %d", pkt.Header.Seq, rawRsp)
 
 	case packet.PacketTypeResponse:
 		if rsper, ok := c.responsers[pkt.Header.Seq]; ok {
-			// decompress payload
-			rawrsp, err := DecompressByGzip(pkt.Payload)
+			// decrypt
+			zipRsp, err := Decrypt(cipherKey, pkt.Payload)
 			if err != nil {
-				atom.Log.Errorf("DecompressByGzip failed: %s", err)
+				atom.Log.Errorf("decrypt failed: %s", err)
+				return err
+			}
+			// decompress
+			rawRsp, err := DecompressByGzip(zipRsp)
+			if err != nil {
+				atom.Log.Errorf("decompress failed: %s", err)
 				return err
 			}
 
-			atom.Log.Debugf("%d|recieve response: %s", pkt.Header.Seq, string(rawrsp))
+			atom.Log.Debugf("%d|recieve response: %s", pkt.Header.Seq, string(rawRsp))
 			// refer: https://stackoverflow.com/questions/62387069/golang-parse-raw-http-2-response
 			// TODO(wenchy): handle HTTP/2
-			rsp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(rawrsp)), rsper.req)
+			rsp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(rawRsp)), rsper.req)
 			if err != nil {
 				atom.Log.Errorf("ReadResponse failed: %v", err)
 				return err
@@ -302,27 +323,33 @@ func Forward(target string, rw http.ResponseWriter, req *http.Request) error {
 	// custom HTTP header field: X-Bifrost-Target
 	req.Header.Set("X-Bifrost-Target", target)
 	// Save a copy of this request for debugging.
-	rawreq, err := httputil.DumpRequest(req, true)
+	rawReq, err := httputil.DumpRequest(req, true)
 	if err != nil {
 		atom.Log.Errorf("DumpRequest failed: %s", err)
 		return err
 	}
 
-	// compress payload
-	compressedReq, err := CompressByGzip(rawreq)
+	// compress
+	zipReq, err := CompressByGzip(rawReq)
 	if err != nil {
-		atom.Log.Errorf("CompressByGzip failed: %s", err)
+		atom.Log.Errorf("compress failed: %s", err)
+		return err
+	}
+	// encrypt
+	cipherReq, err := Encrypt(cipherKey, zipReq)
+	if err != nil {
+		atom.Log.Errorf("encrypt failed: %s", err)
 		return err
 	}
 
-	pkt := packet.NewRequestPacket(compressedReq)
+	pkt := packet.NewRequestPacket(cipherReq)
 	rsper := &Responser{
 		done: make(chan bool),
 		req:  req,
 		rw:   rw,
 	}
 
-	atom.Log.Debugf("%d|send request: %s, %s", pkt.Header.Seq, req.URL.String(), string(rawreq))
+	atom.Log.Debugf("%d|send request: %s, %s", pkt.Header.Seq, req.URL.String(), string(rawReq))
 
 	err = c.SendPacket(pkt, rsper)
 	if err != nil {
@@ -334,7 +361,7 @@ func Forward(target string, rw http.ResponseWriter, req *http.Request) error {
 		select {
 		case <-rsper.done:
 			atom.Log.Debugf("%d|end request: %s", pkt.Header.Seq, req.URL.String())
-			// atom.Log.Debugf("%d|end request: %s", pkt.Header.Seq, string(rawreq))
+			// atom.Log.Debugf("%d|end request: %s", pkt.Header.Seq, string(rawReq))
 			return nil
 		}
 	}
