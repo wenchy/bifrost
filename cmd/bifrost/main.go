@@ -5,7 +5,6 @@ import (
 	"flag"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -99,7 +98,7 @@ func getRequestBodyCopy(request *http.Request) io.ReadCloser {
 	// Read body to buffer
 	body, err := ioutil.ReadAll(request.Body)
 	if err != nil {
-		log.Printf("Error reading body: %v", err)
+		atom.Log.Errorf("Error reading body: %v", err)
 		panic(err)
 	}
 
@@ -112,5 +111,5 @@ func getRequestBodyCopy(request *http.Request) io.ReadCloser {
 
 // Log the typeform payload and redirect url
 func logRequestPayload(req *http.Request, target string) {
-	log.Printf("target: %s, from: %s\n", target, req.URL.String())
+	atom.Log.Infof("target: %s, from: %s\n", target, req.URL.String())
 }
