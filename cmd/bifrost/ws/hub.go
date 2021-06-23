@@ -248,7 +248,7 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		pkt.Payload = cipherRsp
 		c.SendPacket(pkt, nil)
 
-		atom.Log.Debugf("%d|send response: %d", pkt.Header.Seq, rawRsp)
+		atom.Log.Debugf("%d|send response: %s", pkt.Header.Seq, rawRsp)
 
 	case packet.PacketTypeResponse:
 		if rsper, ok := c.responsers[pkt.Header.Seq]; ok {
