@@ -204,6 +204,14 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 
 		client := &http.Client{
 			Timeout: time.Second * 5,
+			// NOTE(wenchy): shouldn't follow any redirects!!!
+		    //
+			// As a special case, if CheckRedirect returns ErrUseLastResponse,
+			// then the most recent response is returned with its body
+		    // unclosed, along with a nil error.
+		    CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		        return http.ErrUseLastResponse
+		    },
 		}
 		rsp, err := client.Do(req)
 		if err != nil {
