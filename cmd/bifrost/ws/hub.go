@@ -131,6 +131,8 @@ func DirectRequest(req *http.Request, target *url.URL) {
 	req.URL.Scheme = target.Scheme
 	req.URL.Host = target.Host
 	req.URL.Path, req.URL.RawPath = joinURLPath(target, req.URL)
+	// NOTE(wenchy): replace `Host` header field
+	req.Host = target.Host
 	if targetQuery == "" || req.URL.RawQuery == "" {
 		req.URL.RawQuery = targetQuery + req.URL.RawQuery
 	} else {
@@ -198,7 +200,7 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 			return err
 		}
 
-		atom.Log.Debugf("%d|recieve request: %s, %s", pkt.Header.Seq, req.URL.String(), string(logRawReq))
+		atom.Log.Debugf("%d|recieve request: %s, %s, %s", pkt.Header.Seq, req.Method, req.URL.String(), string(logRawReq))
 
 		client := &http.Client{
 			Timeout: time.Second * 5,
@@ -220,6 +222,8 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 			atom.Log.Errorf("DumpRequest failed: %s", err)
 			return err
 		}
+
+		atom.Log.Debugf("%d|got response: %s, %s, %s", pkt.Header.Seq, req.Method, req.URL.String(), string(rawRsp))
 
 		h.RLock()
 		c, ok := h.Clients[0] // TODO: pick a proper client
