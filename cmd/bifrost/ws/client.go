@@ -143,6 +143,13 @@ func (c *Client) SendPacket(pkt *packet.Packet, rsper *Responser) error {
 	return nil
 }
 
+func (c *Client) getResponser(seq uint32) *Responser {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.responsers[seq]
+}
+
 // readPump pumps messages from the websocket connection to the hub.
 //
 // The application runs readPump in a per-connection goroutine. The application

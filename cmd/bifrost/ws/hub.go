@@ -263,10 +263,8 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		atom.Log.Debugf("%d|send response: %s", pkt.Header.Seq, rawRsp)
 
 	case packet.PacketTypeResponse:
-		c.Lock()
-		rsper, ok := c.responsers[pkt.Header.Seq]
-		c.Unlock()
-		if !ok {
+		rsper := c.getResponser(pkt.Header.Seq)
+		if rsper != nil {
 			atom.Log.Warnf("%v|responser not found by packet seq", pkt.Header.Seq)
 			return fmt.Errorf("responser not found")
 		}
