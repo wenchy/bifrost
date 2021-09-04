@@ -205,13 +205,13 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		client := &http.Client{
 			Timeout: time.Second * 5,
 			// NOTE(wenchy): shouldn't follow any redirects!!!
-		    //
+			//
 			// As a special case, if CheckRedirect returns ErrUseLastResponse,
 			// then the most recent response is returned with its body
-		    // unclosed, along with a nil error.
-		    CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		        return http.ErrUseLastResponse
-		    },
+			// unclosed, along with a nil error.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		}
 		rsp, err := client.Do(req)
 		if err != nil {
@@ -263,45 +263,51 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		atom.Log.Debugf("%d|send response: %s", pkt.Header.Seq, rawRsp)
 
 	case packet.PacketTypeResponse:
-		if rsper, ok := c.responsers[pkt.Header.Seq]; ok {
-			// decrypt
-			zipRsp, err := Decrypt(cipherKey, pkt.Payload)
-			if err != nil {
-				atom.Log.Errorf("decrypt failed: %s", err)
-				return err
-			}
-			// decompress
-			rawRsp, err := DecompressByGzip(zipRsp)
-			if err != nil {
-				atom.Log.Errorf("decompress failed: %s", err)
-				return err
-			}
-
-			atom.Log.Debugf("%d|recieve response: %s", pkt.Header.Seq, string(rawRsp))
-			// refer: https://stackoverflow.com/questions/62387069/golang-parse-raw-http-2-response
-			// TODO(wenchy): handle HTTP/2
-			rsp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(rawRsp)), rsper.req)
-			if err != nil {
-				atom.Log.Errorf("ReadResponse failed: %v", err)
-				return err
-			}
-			// Read body to buffer
-			body, err := ioutil.ReadAll(rsp.Body)
-			if err != nil {
-				atom.Log.Errorf("Error reading body: %v", err)
-				panic(err)
-			}
-			defer rsp.Body.Close()
-
-			copyHeader(rsper.rw.Header(), rsp.Header)
-			// NOTE(wenchyzhu): read docs of http.ResponseWriter and refer net/http/httputil/reverseproxy.go
-			// Changing the header map after a call to WriteHeader (or
-			// Write) has no effect unless the modified headers are
-			// trailers.
-			rsper.rw.WriteHeader(rsp.StatusCode)
-			rsper.rw.Write(body)
-			rsper.done <- true
+		c.Lock()
+		rsper, ok := c.responsers[pkt.Header.Seq]
+		c.Unlock()
+		if !ok {
+			atom.Log.Warnf("%v|responser not found by packet seq", pkt.Header.Seq)
+			return fmt.Errorf("responser not found")
 		}
+		// decrypt
+		zipRsp, err := Decrypt(cipherKey, pkt.Payload)
+		if err != nil {
+			atom.Log.Errorf("decrypt failed: %s", err)
+			return err
+		}
+		// decompress
+		rawRsp, err := DecompressByGzip(zipRsp)
+		if err != nil {
+			atom.Log.Errorf("decompress failed: %s", err)
+			return err
+		}
+
+		atom.Log.Debugf("%d|recieve response: %s", pkt.Header.Seq, string(rawRsp))
+		// refer: https://stackoverflow.com/questions/62387069/golang-parse-raw-http-2-response
+		// TODO(wenchy): handle HTTP/2
+		rsp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(rawRsp)), rsper.req)
+		if err != nil {
+			atom.Log.Errorf("ReadResponse failed: %v", err)
+			return err
+		}
+		// Read body to buffer
+		body, err := ioutil.ReadAll(rsp.Body)
+		if err != nil {
+			atom.Log.Errorf("Error reading body: %v", err)
+			panic(err)
+		}
+		defer rsp.Body.Close()
+
+		copyHeader(rsper.rw.Header(), rsp.Header)
+		// NOTE(wenchyzhu): read docs of http.ResponseWriter and refer net/http/httputil/reverseproxy.go
+		// Changing the header map after a call to WriteHeader (or
+		// Write) has no effect unless the modified headers are
+		// trailers.
+		rsper.rw.WriteHeader(rsp.StatusCode)
+		rsper.rw.Write(body)
+		rsper.done <- true
+
 	case packet.PacketTypeNotice:
 		atom.Log.Errorf("PacketTypeNotice not processed currently")
 	default:
