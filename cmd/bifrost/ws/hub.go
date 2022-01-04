@@ -261,7 +261,7 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 
 	case packet.PacketTypeResponse:
 		rsper := c.getResponser(pkt.Header.Seq)
-		if rsper != nil {
+		if rsper == nil {
 			atom.Log.Warnf("%v|responser not found by packet seq", pkt.Header.Seq)
 			return fmt.Errorf("responser not found")
 		}
