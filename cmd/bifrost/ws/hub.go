@@ -59,25 +59,22 @@ func (h *hub) register(c *Client) {
 	h.Lock()
 	defer h.Unlock()
 
-	atom.Log.Debugf("%v|register start, client: %p", c.ID, c)
 	h.Clients[c.ID] = c
-	atom.Log.Debugf("%v|register end, client: %p", c.ID, c)
+	atom.Log.Debugf("%v|register client: %p", c.ID, c)
 }
 
 func (h *hub) unregister(c *Client) {
 	h.Lock()
 	defer h.Unlock()
-
-	atom.Log.Debugf("%v|unregister start, client: %p", c.ID, c)
-
-	for id, _ := range h.Clients {
+	// TODO: optimize performance
+	for id := range h.Clients {
 		if c.ID == id {
 			delete(h.Clients, c.ID)
 			c.close()
 			return
 		}
 	}
-	atom.Log.Warnf("%v|unregister end, client: %p, ID not found when unregister", c.ID, c)
+	atom.Log.Warnf("%v|unregister client: %p, ID not found when unregister", c.ID, c)
 }
 
 func (h *hub) dispatchIngress() {
