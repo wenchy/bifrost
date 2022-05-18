@@ -31,7 +31,7 @@ function Start()
     cd $(dirname $0)
     echo "starting..."
 
-    nohup ./${APP} -conf=${CONFPATH} > nohup.log 2>&1 &
+    nohup ./${APP} -conf=${CONFPATH} >> nohup.log 2>&1 &
     echo $! > ${PIDFILE}
     sleep 2 # sleep for 5 seconds, and then check if process has started successfully
     PID=`cat ${PIDFILE}`
