@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -187,7 +188,21 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		}
 
 		target := req.Header.Get("X-Bifrost-Target")
-		targetURL, _ := url.Parse(target)
+		timeout := time.Second * 5
+		t := req.Header.Get("X-Bifrost-Timeout")
+		if t != "" {
+			v, err := strconv.ParseInt(t, 10, 64)
+			if err != nil {
+				atom.Log.Errorf("got %s, parse int failed:%+v", t, err)
+			} else {
+				timeout = time.Duration(v) * time.Second
+			}
+		}
+		targetURL, err := url.Parse(target)
+		if err != nil {
+			atom.Log.Errorf("%s|parse url failed:%+v", target, err)
+			return err
+		}
 		DirectRequest(req, targetURL)
 
 		// Save a copy of this request for debugging.
@@ -200,7 +215,7 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		atom.Log.Debugf("%d|recieve request: %s, %s, %s", pkt.Header.Seq, req.Method, req.URL.String(), string(logRawReq))
 
 		client := &http.Client{
-			Timeout: time.Second * 5,
+			Timeout: timeout,
 			// NOTE(wenchy): shouldn't follow any redirects!!!
 			//
 			// As a special case, if CheckRedirect returns ErrUseLastResponse,
@@ -234,8 +249,8 @@ func (h *hub) handleIngress(c *Client, msg []byte) error {
 		c, ok := h.Clients[0] // TODO: pick a proper client
 		if !ok {
 			h.RUnlock()
-			atom.Log.Warnf("%v|ID not found", c.ID)
-			return fmt.Errorf("ID not found")
+			atom.Log.Warnf("client 0 not found")
+			return fmt.Errorf("client 0 not found")
 		}
 		h.RUnlock()
 
