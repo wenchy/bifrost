@@ -339,13 +339,21 @@ func (h *hub) forward(ID uint64, msg []byte) error {
 	return nil
 }
 
-func Forward(target string, rw http.ResponseWriter, req *http.Request) error {
+func Forward(target string, rw http.ResponseWriter, req *http.Request) {
+	err := doForward(target, rw, req)
+	if err != nil {
+		atom.Log.Errorf("do forward failed: %+v", err)
+		rw.WriteHeader(http.StatusBadGateway)
+	}
+}
+
+func doForward(target string, rw http.ResponseWriter, req *http.Request) error {
 	Hub.RLock()
 	c, ok := Hub.Clients[0] // TODO: pick a proper client
 	if !ok {
 		Hub.RUnlock()
 		atom.Log.Warnf("%v|ID not found", 0)
-		return fmt.Errorf("ID not found")
+		return fmt.Errorf("ID %d not found", 0)
 	}
 	Hub.RUnlock()
 	// custom HTTP header field: X-Bifrost-Target
@@ -394,3 +402,5 @@ func Forward(target string, rw http.ResponseWriter, req *http.Request) error {
 		}
 	}
 }
+
+
